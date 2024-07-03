@@ -32,8 +32,8 @@ import (
 )
 
 import (
-	"github.com/arana-db/arana/pkg/mysql/rows"
 	"github.com/arana-db/arana/pkg/mysql"
+	"github.com/arana-db/arana/pkg/mysql/rows"
 	"github.com/arana-db/arana/pkg/proto"
 	"github.com/arana-db/arana/pkg/runtime/ast"
 	"github.com/arana-db/arana/pkg/util/log"
@@ -514,9 +514,9 @@ func (s *SortMergeJoin) resGenerate(rightRow proto.Row, leftRow proto.Row) proto
 	}
 
 	leftFields, _ := s.inner.Fields()
-	realFields = append(realFields, leftFields[:(len(leftFields) - 1)]...)
+	realFields = append(realFields, leftFields[:(len(leftFields)-1)]...)
 	rightFields, _ := s.outer.Fields()
-	realFields = append(realFields, rightFields[:(len(rightFields) - 1)]...)
+	realFields = append(realFields, rightFields[:(len(rightFields)-1)]...)
 
 	leftValue = make([]proto.Value, len(leftFields))
 	rightValue = make([]proto.Value, len(rightFields))
