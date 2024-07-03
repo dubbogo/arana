@@ -19,7 +19,6 @@ package dml
 
 import (
 	"context"
-	"fmt"
 )
 
 import (
@@ -52,38 +51,46 @@ func (rp RenamePlan) ExecIn(ctx context.Context, conn proto.VConn) (proto.Result
 	}
 
 	convFields := func(fields []proto.Field) []proto.Field {
-		if len(rp.RenameList) != len(fields) {
-			panic(fmt.Sprintf("the length of field doesn't match: expect=%d, actual=%d!", len(rp.RenameList), len(fields)))
-		}
-
-		var renames map[int]struct{}
-		for i := 0; i < len(rp.RenameList); i++ {
-			rename := rp.RenameList[i]
-			name := fields[i].Name()
-			if rename == name {
-				continue
-			}
-			if renames == nil {
-				renames = make(map[int]struct{})
-			}
-			renames[i] = struct{}{}
-		}
-
-		if len(renames) < 1 {
-			return fields
-		}
+		//if len(rp.RenameList) != len(fields) {
+		//	panic(fmt.Sprintf("the length of field doesn't match: expect=%d, actual=%d!", len(rp.RenameList), len(fields)))
+		//}
 
 		newFields := make([]proto.Field, 0, len(fields))
-		for i := 0; i < len(fields); i++ {
-			if _, ok := renames[i]; ok {
-				f := *(fields[i].(*mysql.Field))
-				f.SetName(rp.RenameList[i])
-				f.SetOrgName(rp.RenameList[i])
-				newFields = append(newFields, &f)
-			} else {
-				newFields = append(newFields, fields[i])
-			}
+		for i := 0; i < len(rp.RenameList); i++ {
+			f := *(fields[i].(*mysql.Field))
+			f.SetName(rp.RenameList[i])
+			f.SetOrgName(rp.RenameList[i])
+			newFields = append(newFields, &f)
 		}
+
+		// var renames map[int]struct{}
+		// for i := 0; i < len(rp.RenameList); i++ {
+		// 	rename := rp.RenameList[i]
+		// 	name := fields[i].Name()
+		// 	if rename == name {
+		// 		continue
+		// 	}
+		// 	if renames == nil {
+		// 		renames = make(map[int]struct{})
+		// 	}
+		// 	renames[i] = struct{}{}
+		// }
+
+		// if len(renames) < 1 {
+		// 	return fields
+		// }
+
+		// newFields := make([]proto.Field, 0, len(fields))
+		// for i := 0; i < len(fields); i++ {
+		// 	if _, ok := renames[i]; ok {
+		// 		f := *(fields[i].(*mysql.Field))
+		// 		f.SetName(rp.RenameList[i])
+		// 		f.SetOrgName(rp.RenameList[i])
+		// 		newFields = append(newFields, &f)
+		// 	} else {
+		// 		newFields = append(newFields, fields[i])
+		// 	}
+		// }
 		return newFields
 	}
 

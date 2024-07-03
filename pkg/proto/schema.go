@@ -48,8 +48,7 @@ func NewTableMetadata(name string, columnMetadataList []*ColumnMetadata, indexMe
 		}
 	}
 	for _, indexMetadata := range indexMetadataList {
-		indexName := strings.ToLower(indexMetadata.Name)
-		tma.Indexes[indexName] = indexMetadata
+		tma.Indexes[indexMetadata.ColumnName] = indexMetadata
 	}
 
 	return tma
@@ -66,7 +65,8 @@ type ColumnMetadata struct {
 }
 
 type IndexMetadata struct {
-	Name string
+	ColumnName string
+	Name       string
 }
 
 var _defaultSchemaLoader SchemaLoader

@@ -44,7 +44,7 @@ const (
 	tableMetadataNoOrder     = "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_KEY, EXTRA, COLLATION_NAME, ORDINAL_POSITION FROM information_schema.columns WHERE TABLE_SCHEMA=database()"
 	tableMetadataSQL         = tableMetadataNoOrder + orderByOrdinalPosition
 	tableMetadataSQLInTables = tableMetadataNoOrder + " AND TABLE_NAME IN (%s)" + orderByOrdinalPosition
-	indexMetadataSQL         = "SELECT TABLE_NAME, INDEX_NAME FROM information_schema.statistics WHERE TABLE_SCHEMA=database() AND TABLE_NAME IN (%s)"
+	indexMetadataSQL         = "SELECT TABLE_NAME, COLUMN_NAME, INDEX_NAME FROM information_schema.statistics WHERE TABLE_NAME IN (%s)"
 )
 
 func init() {
@@ -246,8 +246,9 @@ func (l *SimpleSchemaLoader) LoadIndexMetadata(ctx context.Context, schema strin
 		}
 
 		tableName := convertInterfaceToStrNullable(values[0])
-		indexName := convertInterfaceToStrNullable(values[1])
-		result[tableName] = append(result[tableName], &proto.IndexMetadata{Name: indexName})
+		colmnName := convertInterfaceToStrNullable(values[1])
+		indexName := convertInterfaceToStrNullable(values[2])
+		result[tableName] = append(result[tableName], &proto.IndexMetadata{ColumnName: colmnName, Name: indexName})
 	}
 
 	return result, nil
