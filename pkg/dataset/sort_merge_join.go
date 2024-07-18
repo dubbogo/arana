@@ -79,8 +79,8 @@ func NewSortMergeJoin(joinType ast.JoinType, joinColumn *JoinColumn, outer proto
 	}
 
 	fields := make([]proto.Field, 0, len(outerFields)+len(innerFields))
-	fields = append(fields, innerFields...)
-	fields = append(fields, outerFields...)
+	copy(fields, innerFields)
+	copy(fields[len(innerFields):], outerFields)
 
 	if joinType == ast.RightJoin {
 		outer, inner = inner, outer
