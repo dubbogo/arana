@@ -18,6 +18,7 @@
 package dataset
 
 import (
+	"bytes"
 	"io"
 	"sync"
 )
@@ -31,6 +32,7 @@ import (
 )
 
 import (
+	"github.com/arana-db/arana/pkg/mysql"
 	"github.com/arana-db/arana/pkg/mysql/rows"
 	"github.com/arana-db/arana/pkg/proto"
 	"github.com/arana-db/arana/pkg/runtime/ast"
@@ -76,9 +78,9 @@ func NewSortMergeJoin(joinType ast.JoinType, joinColumn *JoinColumn, outer proto
 		return nil, errors.WithStack(err)
 	}
 
-	fields := make([]proto.Field, 0, len(outerFields)+len(innerFields))
-	fields = append(fields, outerFields...)
+	var fields []proto.Field
 	fields = append(fields, innerFields...)
+	fields = append(fields, outerFields...)
 
 	if joinType == ast.RightJoin {
 		outer, inner = inner, outer
@@ -249,6 +251,10 @@ func (j *JoinColumn) Column() string {
 	return ""
 }
 
+func (j *JoinColumn) SetColumn(column string) {
+	j.column = column
+}
+
 func (s *SortMergeJoin) Close() error {
 	return nil
 }
@@ -263,16 +269,12 @@ func (s *SortMergeJoin) Next() (proto.Row, error) {
 		outerRow, innerRow proto.Row
 	)
 
-	if s.LastRow() != nil {
-		outerRow = s.LastRow()
-	} else {
-		outerRow, err = s.getOuterRow()
-		if err != nil {
-			return nil, err
-		}
+	outerRow, err = s.getOuterRow()
+	if err != nil {
+		return nil, err
 	}
 
-	innerRow, err = s.getInnerRow(outerRow)
+	innerRow, err = s.getInnerRow()
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +321,7 @@ func (s *SortMergeJoin) innerJoin(outerRow proto.Row, innerRow proto.Row) (proto
 			if res, err := s.equalCompare(outerRow, innerRow, outerValue); err != nil {
 				return nil, err
 			} else {
+				s.SetLastInnerRow(innerRow)
 				return res, nil
 			}
 		}
@@ -469,12 +472,6 @@ func (s *SortMergeJoin) rightJoin(outerRow proto.Row, innerRow proto.Row) (proto
 }
 
 func (s *SortMergeJoin) getOuterRow() (proto.Row, error) {
-	nextOuterRow := s.NextOuterRow()
-	if nextOuterRow != nil {
-		s.ResetNextOuterRow()
-		return nextOuterRow, nil
-	}
-
 	leftRow, err := s.outer.Next()
 	if err != nil && errors.Is(err, io.EOF) {
 		return nil, nil
@@ -486,21 +483,7 @@ func (s *SortMergeJoin) getOuterRow() (proto.Row, error) {
 	return leftRow, nil
 }
 
-func (s *SortMergeJoin) getInnerRow(outerRow proto.Row) (proto.Row, error) {
-	if outerRow != nil {
-		outerValue, err := outerRow.(proto.KeyedRow).Get(s.joinColumn.Column())
-		if err != nil {
-			return nil, err
-		}
-
-		if s.DescartesFlag() {
-			innerRow := s.EqualValue(outerValue.String())
-			if innerRow != nil {
-				return innerRow, nil
-			}
-		}
-	}
-
+func (s *SortMergeJoin) getInnerRow() (proto.Row, error) {
 	lastInnerRow := s.LastInnerRow()
 	if lastInnerRow != nil {
 		s.ResetLastInnerRow()
@@ -518,19 +501,22 @@ func (s *SortMergeJoin) getInnerRow(outerRow proto.Row) (proto.Row, error) {
 	return rightRow, nil
 }
 
-func (s *SortMergeJoin) resGenerate(leftRow proto.Row, rightRow proto.Row) proto.Row {
+func (s *SortMergeJoin) resGenerate(rightRow proto.Row, leftRow proto.Row) proto.Row {
 	var (
 		leftValue  []proto.Value
 		rightValue []proto.Value
 		res        []proto.Value
+		realFields []proto.Field
 	)
 
 	if leftRow == nil && rightRow == nil {
 		return nil
 	}
 
-	leftFields, _ := s.outer.Fields()
-	rightFields, _ := s.inner.Fields()
+	leftFields, _ := s.inner.Fields()
+	realFields = append(realFields, leftFields[:(len(leftFields)-1)]...)
+	rightFields, _ := s.outer.Fields()
+	realFields = append(realFields, rightFields[:(len(rightFields)-1)]...)
 
 	leftValue = make([]proto.Value, len(leftFields))
 	rightValue = make([]proto.Value, len(rightFields))
@@ -560,12 +546,16 @@ func (s *SortMergeJoin) resGenerate(leftRow proto.Row, rightRow proto.Row) proto
 		}
 	}
 
-	res = append(res, leftValue...)
-	res = append(res, rightValue...)
+	res = append(res, leftValue[:(len(leftValue)-1)]...)
+	res = append(res, rightValue[:(len(rightValue)-1)]...)
 
-	fields, _ := s.Fields()
-
-	return rows.NewBinaryVirtualRow(fields, res)
+	var b bytes.Buffer
+	row := rows.NewTextVirtualRow(realFields, res)
+	_, err := row.WriteTo(&b)
+	if err != nil {
+		return nil
+	}
+	return mysql.NewTextRow(realFields, b.Bytes())
 }
 
 func (s *SortMergeJoin) equalCompare(outerRow proto.Row, innerRow proto.Row, outerValue proto.Value) (proto.Row, error) {
@@ -614,7 +604,7 @@ func (s *SortMergeJoin) greaterCompare(outerRow proto.Row) (proto.Row, proto.Row
 		innerRow = s.EqualValue(outerValue.String())
 	} else {
 		s.setDescartesFlag(NotDescartes)
-		innerRow, err = s.getInnerRow(outerRow)
+		innerRow, err = s.getInnerRow()
 		if err != nil {
 			return nil, nil, err
 		}
