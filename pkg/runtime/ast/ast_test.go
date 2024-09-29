@@ -400,7 +400,6 @@ func TestQuote(t *testing.T) {
 	sel := stmt.(*SelectStatement)
 	var sb strings.Builder
 	_ = sel.Restore(RestoreDefault, &sb, nil)
-	t.Log(sb.String())
 	assert.Equal(t, "SELECT `a``bc`", sb.String())
 }
 
